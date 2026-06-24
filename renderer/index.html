@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Smart Xerox — Print Agent</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- ═══════════ LOGIN SCREEN ═══════════ -->
+  <div id="loginScreen" class="screen active">
+    <div class="logo-area">
+      <div class="logo-icon">🖨️</div>
+      <h1>Smart Xerox</h1>
+      <p class="subtitle">Print Agent for Shopkeepers</p>
+    </div>
+
+    <form id="loginForm" class="card">
+      <div class="field">
+        <label for="email">Email</label>
+        <input type="email" id="email" placeholder="shopkeeper@email.com" required />
+      </div>
+      <div class="field">
+        <label for="password">Password</label>
+        <input type="password" id="password" placeholder="••••••••" required />
+      </div>
+      <button type="submit" id="loginBtn" class="btn-primary">
+        <span class="btn-text">Login & Connect</span>
+        <span class="btn-loading hidden">Connecting...</span>
+      </button>
+      <div id="loginError" class="error-msg hidden"></div>
+    </form>
+  </div>
+
+  <!-- ═══════════ SETUP SCREEN (Hidden - Auto-Detect) ═══════════ -->
+  <div id="setupScreen" class="screen" style="display: none;">
+    <!-- Setup screen hidden - printers auto-detected -->
+  </div>
+
+  <!-- ═══════════ DASHBOARD SCREEN ═══════════ -->
+  <div id="dashboardScreen" class="screen">
+    <div class="top-bar">
+      <div class="top-bar-left">
+        <span class="status-dot" id="statusDot"></span>
+        <span id="statusLabel">Connecting...</span>
+      </div>
+      <div class="top-bar-right">
+        <button id="refreshBtn" class="btn-ghost" title="Refresh Jobs">↻</button>
+        <button id="logoutBtn" class="btn-ghost" title="Logout">⏻</button>
+      </div>
+    </div>
+
+    <div class="dashboard-header">
+      <h2 id="shopNameLabel">Shop</h2>
+      <p class="subtitle" id="printerLabel">Printers: 0 active</p>
+    </div>
+
+    <!-- Printer Grid (Multi-Printer Dashboard) -->
+    <div id="printersGrid" class="printers-grid">
+      <!-- Dynamically populated with printer cards -->
+    </div>
+
+    <!-- Global Queue Display -->
+    <div id="queueContainer" class="card queue-card">
+      <div class="queue-header">
+        <h3>📋 Global Queue</h3>
+        <span class="queue-count" id="globalQueueCount">0 orders</span>
+      </div>
+      <div id="globalQueueList" class="queue-list">
+        <div class="queue-empty">No orders in queue</div>
+      </div>
+    </div>
+
+    <!-- Recovery Banner (shown when agent recovers incomplete jobs on startup) -->
+    <div id="recoveryBanner" class="recovery-banner hidden">
+      <div class="recovery-icon">🔄</div>
+      <div class="recovery-text">
+        <strong>Recovering Print Jobs</strong>
+        <span id="recoveryMessage">Checking for incomplete jobs...</span>
+      </div>
+      <button id="dismissRecovery" class="btn-ghost small">✕</button>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="stat-value" id="totalLoad">0</div>
+        <div class="stat-label">Total Load</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="activePrinters">0</div>
+        <div class="stat-label">Active Printers</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="totalQueued">0</div>
+        <div class="stat-label">Total Queued</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="printedCount">0</div>
+        <div class="stat-label">Printed</div>
+      </div>
+    </div>
+
+    <!-- Paused Jobs Section -->
+    <div id="pausedJobsSection" class="card paused-card hidden">
+      <div class="paused-header">
+        <h3>⏸️ Paused Jobs</h3>
+        <span class="hint">Add paper or fix printer, then click Resume</span>
+      </div>
+      <div id="pausedJobsContainer" class="paused-jobs-container"></div>
+    </div>
+
+    <!-- Print History (Persistent) -->
+    <div class="card history-card">
+      <div class="history-header">
+        <h3>📜 Print History</h3>
+        <button id="clearHistoryBtn" class="btn-ghost small">Clear History</button>
+      </div>
+      <div id="historyContainer" class="history-container">
+        <div class="history-empty">
+          <div class="history-empty-icon">✓</div>
+          <p>No completed print jobs yet</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Activity Log -->
+    <div class="card log-card">
+      <div class="log-header">
+        <h3>📋 Recent Activity</h3>
+        <button id="clearLogBtn" class="btn-ghost small">Clear All</button>
+      </div>
+      <div id="logContainer" class="log-container">
+        <div class="log-empty">
+          <div class="log-empty-icon">🖨️</div>
+          <p>Ready to print! Orders will appear here.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app-multi.js"></script>
+</body>
+</html>

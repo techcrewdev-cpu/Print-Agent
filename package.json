@@ -1,0 +1,66 @@
+{
+  "name": "smartxerox-print-agent",
+  "version": "1.0.0",
+  "description": "Smart Xerox — One-click Desktop Print Agent for shopkeepers",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "cross-env NODE_ENV=development electron .",
+    "build:win": "electron-builder --win --x64",
+    "build:dir": "electron-builder --win --dir",
+    "test:printers": "node -e \"require('pdf-to-printer').getPrinters().then(p => console.log(JSON.stringify(p, null, 2)))\""
+  },
+  "dependencies": {
+    "auto-launch": "^5.0.6",
+    "axios": "^1.15.0",
+    "electron-store": "^8.2.0",
+    "jszip": "^3.10.1",
+    "pdf-lib": "^1.17.1",
+    "pdf-to-printer": "^5.7.0",
+    "socket.io-client": "^4.8.3"
+  },
+  "devDependencies": {
+    "cross-env": "^7.0.3",
+    "electron": "^30.0.0",
+    "electron-builder": "^24.13.0"
+  },
+  "build": {
+    "appId": "com.smartxerox.printagent",
+    "productName": "Smart Xerox Print Agent",
+    "copyright": "Copyright © 2026 Smart Xerox",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "print-engine.js",
+      "print-engine-multi.js",
+      "renderer/**/*",
+      "assets/**/*",
+      "node_modules/**/*"
+    ],
+    "extraResources": [],
+    "win": {
+      "target": [
+        {
+          "target": "zip",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/icon.png"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": false,
+      "deleteAppDataOnUninstall": false,
+      "shortcutName": "Smart Xerox Print Agent"
+    }
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
