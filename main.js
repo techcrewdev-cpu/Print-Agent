@@ -345,6 +345,11 @@ function startEngine(force = false) {
         handleTokenRefresh();
       }
 
+      // Handle proactive token refresh request from engine interceptor
+      if (event.type === 'token_refresh_needed') {
+        handleTokenRefresh();
+      }
+
       // Show window on important events (including when printing starts)
       // Commented out to make the print agent completely silent in the background
       /*
@@ -398,14 +403,16 @@ let tokenRefreshInterval = null;
 function startTokenRefreshTimer() {
   if (tokenRefreshInterval) clearInterval(tokenRefreshInterval);
   
-  // Refresh token every 50 minutes (assuming 1 hour expiry)
+  // Refresh token proactively every 20 minutes.
+  // This is intentionally conservative — works whether JWT_EXPIRES_IN is 30min, 1h, or 7d.
+  // The /auth/refresh-token endpoint uses token rotation so calling it early is safe.
   tokenRefreshInterval = setInterval(async () => {
     const token = store.get('token');
     if (token) {
       console.log('🔄 Auto-refreshing token...');
       await handleTokenRefresh();
     }
-  }, 50 * 60 * 1000); // 50 minutes
+  }, 20 * 60 * 1000); // 20 minutes
 }
 
 function stopTokenRefreshTimer() {

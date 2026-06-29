@@ -816,9 +816,22 @@ async function init({ apiUrl, token, printerNames, onEvent, store }) {
 
   api.interceptors.response.use(
     r => r,
-    err => {
-      if (err.response?.status === 401) {
-        log('⚠️ Auth token expired');
+    async err => {
+      const originalRequest = err.config;
+      // On 401, attempt a silent token refresh once before giving up
+      if (err.response?.status === 401 && !originalRequest._retried) {
+        originalRequest._retried = true;
+        try {
+          // Ask main process to refresh — it has access to the store
+          eventCallback({ type: 'token_refresh_needed' });
+          // Wait briefly for main process to rotate tokens and call updateToken()
+          await new Promise(resolve => setTimeout(resolve, 1500));
+          if (config.token) {
+            originalRequest.headers['Authorization'] = `Bearer ${config.token}`;
+            return api(originalRequest); // retry with new token
+          }
+        } catch (_) { /* fall through to auth_expired */ }
+        log('⚠️ Auth token expired — refresh failed');
         eventCallback({ type: 'auth_expired', message: 'Token expired' });
       }
       return Promise.reject(err);

@@ -1,4 +1,30 @@
+# ── Dependencies ─────────────────────────────────────────────
 node_modules/
+
+# ── Build output ──────────────────────────────────────────────
 dist/
+
+# ── Generated assets (local icon, not needed in repo) ─────────
+assets/
+
+# ── Logs ──────────────────────────────────────────────────────
 *.log
+logs/
+
+# ── Environment / secrets ─────────────────────────────────────
 .env
+.env.*
+
+# ── Electron store (encrypted user config, machine-specific) ──
+*.json.bak
+
+# ── OS junk ───────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── Editor ────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo

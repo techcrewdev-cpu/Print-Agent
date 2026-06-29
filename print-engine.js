@@ -120,8 +120,19 @@ function init({ apiUrl, token, printerName, onEvent, store }) {
 
   api.interceptors.response.use(
     r => r,
-    err => {
-      if (err.response?.status === 401) {
+    async err => {
+      const originalRequest = err.config;
+      // On 401, attempt a silent token refresh once before giving up
+      if (err.response?.status === 401 && !originalRequest._retried) {
+        originalRequest._retried = true;
+        try {
+          eventCallback({ type: 'token_refresh_needed' });
+          await new Promise(resolve => setTimeout(resolve, 1500));
+          if (config.token) {
+            originalRequest.headers['Authorization'] = `Bearer ${config.token}`;
+            return api(originalRequest);
+          }
+        } catch (_) { /* fall through to auth_expired */ }
         eventCallback({ type: 'auth_expired', message: 'Session expired. Please re-login.' });
       }
       return Promise.reject(err);
