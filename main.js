@@ -11,8 +11,8 @@ const axios       = require('axios');
 const engine      = require('./print-engine-multi');
 
 // ─── CONFIGURE THESE ONCE before building the installer ───────────────────
-const API_URL      = process.env.SMARTXEROX_API_URL      || 'http://localhost:5000/api';
-const FRONTEND_URL = process.env.SMARTXEROX_FRONTEND_URL || 'http://localhost:3000';
+const API_URL      = process.env.SMARTXEROX_API_URL      || 'https://smart-xerox-backend-dhz3.onrender.com/api';
+const FRONTEND_URL = process.env.SMARTXEROX_FRONTEND_URL || 'https://smart-xerox-frontend.vercel.app';
 
 // ─── Register custom protocol (smartxerox://) ─────────────────────────────
 if (process.defaultApp) {
@@ -370,10 +370,25 @@ function startEngine(force = false) {
 }
 
 // ─── Token Refresh ───────────────────────────────────────────────────────────
+let isRefreshing = false; // prevents concurrent refresh attempts
+
 async function handleTokenRefresh() {
+  if (isRefreshing) return; // already in progress
+  isRefreshing = true;
+
   const apiUrl       = API_URL;
   const refreshToken = store.get('refreshToken');
-  if (!refreshToken) return;
+  if (!refreshToken) {
+    // No refresh token stored — session is definitively dead
+    isRefreshing = false;
+    isEngineRunning = false;
+    engine.disconnect();
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('engine-event', { type: 'auth_expired', message: 'Session expired. Please re-login.' });
+      mainWindow.show();
+    }
+    return;
+  }
 
   try {
     const res = await axios.post(`${apiUrl}/auth/refresh-token`, { refreshToken });
@@ -386,7 +401,11 @@ async function handleTokenRefresh() {
       engine.updateToken(newToken);
     }
   } catch {
-    // Refresh failed — user must re-login
+    // Refresh definitively failed — clear stale tokens and force re-login
+    store.delete('token');
+    store.delete('refreshToken');
+    isEngineRunning = false;
+    engine.disconnect();
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('engine-event', {
         type: 'auth_expired',
@@ -394,6 +413,8 @@ async function handleTokenRefresh() {
       });
       mainWindow.show();
     }
+  } finally {
+    isRefreshing = false;
   }
 }
 
@@ -434,14 +455,22 @@ if (!gotLock) {
     if (deepLink) handleDeepLink(deepLink);
   });
 
-  app.whenReady().then(() => {
+  app.whenReady().then(async () => {
     createWindow();
     createTray();
 
     // Auto-connect if we have a saved session
+    // Proactively refresh the access token before starting the engine so we
+    // never start with a stale token and trigger the 401 loop.
     const token = store.get('token');
     if (token) {
-      setTimeout(startEngine, 1000);
+      // Try to silently refresh first; if it fails handleTokenRefresh clears
+      // the stored tokens and shows the login window instead of starting.
+      await handleTokenRefresh();
+      // Only start the engine if we still have a valid token after refresh
+      if (store.get('token')) {
+        setTimeout(startEngine, 500);
+      }
     }
 
     // Check if launched via deep link (Windows)
@@ -499,6 +528,7 @@ function handleDeepLink(url) {
         try { autoLauncher.enable(); } catch {}
 
         // Connect engine
+        isEngineRunning = false; // reset so startEngine doesn't bail on duplicate check
         engine.disconnect();
         startEngine();
 

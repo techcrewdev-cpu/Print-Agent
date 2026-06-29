@@ -262,6 +262,7 @@ let eventCallback      = () => {};
 let fallbackTimer      = null;
 let autoPollingTimer   = null; // ← NEW: Auto-fetch orders periodically
 let notificationRetryTimer = null;
+let authFailed         = false; // ← Guards all polling when auth is broken
 
 // ─── addOrderToBatch with full deduplication ─────────────────────────────────
 function addOrderToBatch(data) {
@@ -826,12 +827,14 @@ async function init({ apiUrl, token, printerNames, onEvent, store }) {
           eventCallback({ type: 'token_refresh_needed' });
           // Wait briefly for main process to rotate tokens and call updateToken()
           await new Promise(resolve => setTimeout(resolve, 1500));
-          if (config.token) {
+          if (config.token && !authFailed) {
             originalRequest.headers['Authorization'] = `Bearer ${config.token}`;
             return api(originalRequest); // retry with new token
           }
         } catch (_) { /* fall through to auth_expired */ }
-        log('⚠️ Auth token expired — refresh failed');
+        log('⚠️ Auth token expired — refresh failed, stopping polling');
+        authFailed = true;
+        if (autoPollingTimer) { clearInterval(autoPollingTimer); autoPollingTimer = null; }
         eventCallback({ type: 'auth_expired', message: 'Token expired' });
       }
       return Promise.reject(err);
@@ -916,11 +919,16 @@ function getPausedJobs() {
   return jobs;
 }
 
-// ─── Auto-Polling: Fetch Incomplete Jobs Every 2 Seconds ──────────────────────
+// ─── Auto-Polling: Fetch Incomplete Jobs Every 5 Seconds ──────────────────────
 // This ensures orders are picked up automatically without needing manual refresh
 async function autoPollingIncompleteJobs() {
   if (!api) return;
-  
+  // Stop polling immediately when auth is broken — avoids hammering 401 in a tight loop
+  if (authFailed) {
+    log('⚠️ Auto-poll skipped — auth failed, awaiting re-login');
+    return;
+  }
+
   try {
     const res = await api.get('/orders/incomplete-jobs');
     const orders = res.data.data?.orders || [];
@@ -944,8 +952,15 @@ async function autoPollingIncompleteJobs() {
       redistributeGlobalQueue();
     }
   } catch (err) {
-    // Only log network/auth errors
-    if (err.message && (err.message.includes('Network') || err.message.includes('401') || err.message.includes('ECONNREFUSED'))) {
+    // On definitive auth failure, stop the polling loop entirely
+    const status = err.response?.status;
+    if (status === 401) {
+      log('⚠️ Auto-poll: received 401 — stopping polling until token is refreshed');
+      authFailed = true;
+      if (autoPollingTimer) { clearInterval(autoPollingTimer); autoPollingTimer = null; }
+      return;
+    }
+    if (err.message && (err.message.includes('Network') || err.message.includes('ECONNREFUSED'))) {
       log(`⚠️ Auto-poll network issue: ${err.message}`);
     }
   }
@@ -1121,6 +1136,17 @@ function updateToken(newToken) {
   if (!newToken) return;
   config.token = newToken;
   if (api) api.defaults.headers.Authorization = `Bearer ${newToken}`;
+
+  // Clear auth-failure guard and restart the polling loop
+  if (authFailed) {
+    log('🔑 Token refreshed — re-enabling auto-polling');
+    authFailed = false;
+    if (!autoPollingTimer) {
+      autoPollingTimer = setInterval(autoPollingIncompleteJobs, 5000);
+      autoPollingIncompleteJobs(); // one immediate poll with fresh token
+    }
+  }
+
   if (socket) {
     socket.auth = { token: newToken };
     if (socket.connected) {
@@ -1136,9 +1162,10 @@ function updateToken(newToken) {
 function disconnect() {
   if (socket)               { socket.disconnect(); socket = null; }
   if (fallbackTimer)        { clearInterval(fallbackTimer); fallbackTimer = null; }
-  if (autoPollingTimer)     { clearInterval(autoPollingTimer); autoPollingTimer = null; } // ← CLEANUP
+  if (autoPollingTimer)     { clearInterval(autoPollingTimer); autoPollingTimer = null; }
   if (batchProcessTimer)    { clearTimeout(batchProcessTimer); batchProcessTimer = null; }
   if (notificationRetryTimer) { clearInterval(notificationRetryTimer); notificationRetryTimer = null; }
+  authFailed = false; // reset so a fresh startEngine() after re-login works
   printedOrders.clear();
   printingNow.clear();
   orderBatch.length = 0;
